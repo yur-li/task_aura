@@ -1,0 +1,91 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: task-aura
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-result: ignore
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/instance: task-aura
+    argocd.argoproj.io/instance: task-aura
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/yur-li/task_aura
+    targetRevision: main
+    path: helm/task-aura
+    helm:
+      releaseName: task-aura
+      values: |
+        customerFacing:
+          enabled: true
+          customerMgmtUrl: "http://customer-mgmt:8081"
+          image:
+            repository: yuriili/task-aura-customer-facing
+            tag: 379142751cbf5f10ca974fe2492ce6648d8796b7
+            pullPolicy: IfNotPresent
+          replicas: 1
+          autoscaling:
+            enabled: true
+            minReplicas: 1
+            maxReplicas: 4
+            targetCPUUtilizationPercentage: 60
+            targetMemoryUtilizationPercentage: 80
+            targetHttpRequestsPerSecond: 50
+
+        customerMgmt:
+          enabled: true
+          image:
+            repository: yuriili/task-aura-customer-mgmt
+            tag: 379142751cbf5f10ca974fe2492ce6648d8796b7
+            pullPolicy: IfNotPresent
+          replicas: 1
+          autoscaling:
+            enabled: true
+            minReplicas: 1
+            maxReplicas: 4
+            targetCPUUtilizationPercentage: 60
+            targetMemoryUtilizationPercentage: 80
+            targetKafkaConsumerLag: 1000
+
+        ui:
+          enabled: true
+
+        kafka:
+          brokers: "kafka.task-aura.svc.cluster.local:9092"
+          topic: "purchases"
+          partitions: 3
+          replicas: 1
+
+        mongodb:
+          secretName: "mongodb"
+          secretPasswordKey: "mongodb-passwords"
+          username: "task_aura_app"
+          host: "mongodb.task-aura.svc.cluster.local"
+          port: 27017
+          database: "task_aura"
+          collection: "purchases"
+          authSource: "task_aura"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: task-aura
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

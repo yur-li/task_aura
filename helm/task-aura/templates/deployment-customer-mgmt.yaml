@@ -1,0 +1,133 @@
+{{- if .Values.customerMgmt.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-mgmt
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-mgmt
+    version: v1
+spec:
+  replicas: {{ .Values.customerMgmt.replicas }}
+  
+  selector:
+    matchLabels:
+      app: customer-mgmt
+  
+  template:
+    metadata:
+      labels:
+        app: customer-mgmt
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.customerMgmt.service.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    
+    spec:
+      {{- if .Values.rbac.enabled }}
+      serviceAccountName: {{ .Values.rbac.serviceAccount.name }}
+      {{- end }}
+      
+      containers:
+      - name: customer-mgmt
+        image: "{{ .Values.customerMgmt.image.repository }}:{{ .Values.customerMgmt.image.tag }}"
+        imagePullPolicy: {{ .Values.customerMgmt.image.pullPolicy }}
+        
+        ports:
+        - name: http
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: {{ .Values.customerMgmt.service.metricsPort }}
+          protocol: TCP
+        
+        env:
+        - name: API_PORT
+          value: "8081"
+        - name: METRICS_PORT
+          value: "{{ .Values.customerMgmt.service.metricsPort }}"
+        
+        # MongoDB credentials from infrastructure Secret
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mongodb.secretName }}
+              key: {{ .Values.mongodb.secretPasswordKey }}
+        # Build connection string using the secret password
+        - name: MONGODB_CONNECTION_STRING
+          value: "mongodb://{{ .Values.mongodb.username }}:$(MONGODB_PASSWORD)@{{ .Values.mongodb.host }}:{{ .Values.mongodb.port }}/{{ .Values.mongodb.database }}?authSource={{ .Values.mongodb.authSource }}"
+        
+        # Kafka credentials from infrastructure Secret (cross-namespace)
+        - name: KAFKA_SASL_PLAIN_USERNAME
+          value: {{ .Values.kafka.username | quote }}
+        - name: KAFKA_SASL_PLAIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-user-passwords
+              key: client-passwords
+        
+        # Load environment from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: customer-mgmt-config
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "{{ .Values.customerMgmt.resources.requests.memory }}"
+            cpu: "{{ .Values.customerMgmt.resources.requests.cpu }}"
+          limits:
+            memory: "{{ .Values.customerMgmt.resources.limits.memory }}"
+            cpu: "{{ .Values.customerMgmt.resources.limits.cpu }}"
+        
+        # Liveness probe
+        {{- if .Values.customerMgmt.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.customerMgmt.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.customerMgmt.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.customerMgmt.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.customerMgmt.livenessProbe.failureThreshold }}
+        {{- end }}
+        
+        # Readiness probe
+        {{- if .Values.customerMgmt.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: {{ .Values.customerMgmt.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.customerMgmt.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.customerMgmt.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.customerMgmt.readinessProbe.failureThreshold }}
+        {{- end }}
+        
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - customer-mgmt
+              topologyKey: kubernetes.io/hostname
+---
+{{- end }}

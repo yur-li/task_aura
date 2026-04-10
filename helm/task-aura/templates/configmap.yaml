@@ -1,0 +1,41 @@
+{{- if .Values.customerFacing.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-facing-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-facing
+data:
+  LOG_LEVEL: {{ .Values.environmentVariables.LOG_LEVEL | quote }}
+  REQUEST_TIMEOUT: {{ .Values.environmentVariables.REQUEST_TIMEOUT | quote }}
+  KAFKA_BROKERS: {{ .Values.kafka.brokers | quote }}
+  KAFKA_TOPIC: {{ .Values.kafka.topic | quote }}
+  KAFKA_SASL_MECHANISM: "PLAIN"
+  KAFKA_SECURITY_PROTOCOL: "SASL_PLAINTEXT"
+  CUSTOMER_MGMT_URL: {{ .Values.customerFacing.customerMgmtUrl | quote }}
+  VALID_API_KEYS: {{ .Values.environmentVariables.VALID_API_KEYS | quote }}
+---
+{{- if .Values.customerMgmt.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-mgmt-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-mgmt
+data:
+  LOG_LEVEL: {{ .Values.environmentVariables.LOG_LEVEL | quote }}
+  REQUEST_TIMEOUT: {{ .Values.environmentVariables.REQUEST_TIMEOUT | quote }}
+  KAFKA_BROKERS: {{ .Values.kafka.brokers | quote }}
+  KAFKA_TOPIC: {{ .Values.kafka.topic | quote }}
+  KAFKA_SASL_MECHANISM: "PLAIN"
+  KAFKA_SECURITY_PROTOCOL: "SASL_PLAINTEXT"
+  MONGODB_HOST: {{ .Values.mongodb.host | quote }}
+  MONGODB_PORT: {{ .Values.mongodb.port | quote }}
+  MONGODB_DATABASE: {{ .Values.mongodb.database | quote }}
+  MONGODB_COLLECTION: {{ .Values.mongodb.collection | quote }}
+  MONGODB_AUTH_SOURCE: {{ .Values.mongodb.authSource | quote }}
+  MONGODB_SECRET_NAME: {{ .Values.mongodb.secretName | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,65 @@
+# ArgoCD "App of Apps" Root Application
+# This application automatically discovers and deploys all applications from the repository
+# Applications are deployed in order based on syncWave annotations (lower numbers first)
+#
+# Deployment order:
+# Wave 0-4:  Infrastructure (Prometheus, Prometheus Adapter, MongoDB, Kafka)
+# Wave 10:   Task Aura application chart (customer-facing, customer-mgmt, UI)
+#
+# To deploy the entire system:
+#   kubectl apply -f manifests/root-app.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: task-aura-root
+  namespace: argocd
+spec:
+  project: default
+  
+  # Source: Applications are defined in manifests/applications/ directory
+  # ArgoCD will recursively discover all Application manifests
+  source:
+    repoURL: https://github.com/yur-li/task_aura
+    targetRevision: main
+    path: manifests/applications
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  
+  # Sync policy: Keep cluster in sync with Git
+  syncPolicy:
+    automated:
+      prune: true        # Delete resources removed from Git
+      selfHeal: true     # Revert manual changes
+      allowEmpty: false  # Prevent accidental deletions
+    
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+# This manifest enables ArgoCD to recursively discover applications
+# in the manifests/applications directory
+# Applications will be sorted by syncWave and deployed in order
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-aura-wave-manager
+  namespace: argocd
+data:
+  # Documentation for syncWave values
+  sync-waves: |
+    Wave 0: Prometheus (metrics infrastructure)
+    Wave 1: Prometheus Adapter (custom metrics API for HPA)
+    Wave 3: MongoDB (data layer)
+    Wave 4: Kafka (messaging layer)
+    Wave 10: Task Aura (customer-facing, customer-mgmt, UI)

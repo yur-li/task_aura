@@ -1,0 +1,19 @@
+apiVersion: v2
+name: task-aura
+description: Task Aura backend custom applications chart
+type: application
+version: 1.0.0
+appVersion: "1.0"
+
+keywords:
+  - kafka
+  - mongodb
+  - distributed-system
+  - microservices
+
+maintainers:
+  - name: DevOps Team
+    email: devops@taskaura.local
+
+home: https://github.com/user/task-aura
+dependencies: []

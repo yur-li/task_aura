@@ -1,0 +1,31 @@
+{{- if and .Values.serviceMonitor.enabled (or .Values.customerFacing.enabled .Values.customerMgmt.enabled) }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: task-aura-metrics
+  namespace: monitoring
+  labels:
+    # Must match the Prometheus serviceMonitorSelector — kube-prometheus-stack
+    # uses release label by default
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+    - task-aura
+  selector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      {{- if .Values.customerFacing.enabled }}
+      - customer-facing
+      {{- end }}
+      {{- if .Values.customerMgmt.enabled }}
+      - customer-mgmt
+      {{- end }}
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+{{- end }}

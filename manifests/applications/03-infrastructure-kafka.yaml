@@ -1,0 +1,107 @@
+# ArgoCD Application for Kafka (Wave 3 - Messaging layer)
+# Deployed in parallel with MongoDB
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka
+  namespace: argocd
+  # Wave 3: Deploy after monitoring infrastructure
+  annotations:
+    argocd.argoproj.io/compare-result: ignore
+    argocd.argoproj.io/sync-wave: "4"
+  labels:
+    app.kubernetes.io/instance: task-aura
+    argocd.argoproj.io/instance: task-aura
+spec:
+  project: default
+  source:
+    repoURL: registry-1.docker.io/bitnamicharts
+    chart: kafka
+    targetRevision: 32.4.2
+    helm:
+      values: |
+        # Use legacy Bitnami images with versioned tags
+        # NOTE: Hardened images (latest tag only) are incompatible with versioned chart pins
+        # For production: Migrate to KRaft mode + latest hardened images
+        image:
+          registry: docker.io
+          repository: bitnamilegacy/kafka
+          tag: 4.0.0-debian-12-r10
+        
+        zookeeper:
+          image:
+            registry: docker.io
+            repository: bitnamilegacy/zookeeper
+            tag: 3.9.3-debian-12-r22
+        
+        # Pure Zookeeper mode
+        mode: zookeeper
+        
+        # Zookeeper configuration
+        zookeeper:
+          enabled: true
+          replicaCount: 1
+          persistence:
+            enabled: true
+            size: 5Gi
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+        
+        # Kafka broker configuration
+        broker:
+          replicaCount: 1
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        
+        # SASL authentication
+        auth:
+          sasl:
+            enabled: true
+          client:
+            protocol: SASL_PLAINTEXT
+            interBroker:
+              protocol: PLAINTEXT
+        
+        # Storage configuration
+        persistence:
+          enabled: true
+          size: 5Gi
+
+        # Kafka metrics for Prometheus (JMX exporter + ServiceMonitor)
+        metrics:
+          jmx:
+            enabled: true
+            image:
+              registry: docker.io
+              repository: bitnamilegacy/jmx-exporter
+              tag: 1.4.0
+          serviceMonitor:
+            enabled: true
+            namespace: monitoring
+        
+        topicAutoCreate: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: task-aura
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

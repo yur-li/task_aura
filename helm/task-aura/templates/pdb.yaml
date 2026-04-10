@@ -1,0 +1,27 @@
+{{- if .Values.customerFacing.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: customer-facing-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: {{ .Values.customerFacing.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: customer-facing
+---
+{{- end }}
+
+{{- if .Values.customerMgmt.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: customer-mgmt-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: {{ .Values.customerMgmt.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: customer-mgmt
+---
+{{- end }}

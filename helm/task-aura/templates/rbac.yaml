@@ -1,0 +1,36 @@
+{{- if .Values.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: task-aura
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: task-aura
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: task-aura
+  labels:
+    app: task-aura
+rules:
+  # Minimal permissions - services don't need K8s API access
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: task-aura
+  labels:
+    app: task-aura
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: task-aura
+subjects:
+  - kind: ServiceAccount
+    name: task-aura
+    namespace: {{ .Values.global.namespace }}
+{{- end }}

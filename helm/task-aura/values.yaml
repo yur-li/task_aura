@@ -1,0 +1,187 @@
+# Task Aura Configuration for Local Development (Docker Desktop K8s)
+# This configuration is optimized for local Kubernetes development
+
+# Global settings
+global:
+  environment: dev
+  namespace: task-aura
+  imagePullPolicy: Always  # Always pull latest images for local development
+
+# Customer-Facing Service Configuration
+customerFacing:
+  enabled: true
+  replicas: 2
+  customerMgmtUrl: "http://customer-mgmt:8081"
+  image:
+    repository: task-aura-customer-facing
+    tag: latest
+    pullPolicy: Always  # Always pull latest images for local development
+  
+  service:
+    type: ClusterIP  # Use port-forward to access locally: kubectl port-forward svc/customer-facing 8080:80 -n task-aura
+    port: 80
+    targetPort: 8080
+    metricsPort: 8001
+  
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  
+  # Health checks
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    targetHttpRequestsPerSecond: 50
+    targetKafkaConsumerLag: 1000
+
+# Customer Management Service Configuration
+customerMgmt:
+  enabled: true
+  replicas: 2
+  image:
+    repository: task-aura-customer-mgmt
+    tag: latest
+    pullPolicy: Always  # Always pull latest images for local development
+  
+  service:
+    type: ClusterIP  # Internal service, only accessed by customer-facing
+    port: 8081
+    targetPort: 8081
+    metricsPort: 8002
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Health checks
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Kafka Configuration
+kafka:
+  # Production: Use external Kafka cluster endpoint
+  # Local K8s: Bitnami Kafka creates kafka service (or kafka-0.kafka-broker-headless for specific broker)
+  brokers: "kafka.task-aura.svc.cluster.local:9092"
+  topic: "purchases"
+  partitions: 3
+  replicas: 1
+  username: "user1"
+  # Credentials are managed by the Bitnami Kafka release.
+  # Runtime password source: secret kafka-user-passwords / key client-passwords.
+
+# UI Configuration
+ui:
+  enabled: true
+
+# Kubernetes Networking
+networkPolicy:
+  enabled: false
+  # Restrict pod-to-pod communication
+  # customer-facing -> customer-mgmt, kafka
+  # customer-mgmt -> mongodb, kafka
+
+# RBAC Configuration
+rbac:
+  enabled: true
+  serviceAccount:
+    create: true
+    name: task-aura
+
+# Namespace resource control
+namespace:
+  create: true
+
+# ServiceMonitor control
+serviceMonitor:
+  enabled: true
+
+# MongoDB Configuration
+mongodb:
+  # References the MongoDB secret created by infrastructure deployment (Wave 2)
+  # The Bitnami MongoDB Helm chart creates a secret named 'mongodb' in the 'task-aura' namespace.
+  # For auth.usernames/databases mode, password is stored under key 'mongodb-passwords'.
+  secretName: mongodb
+  secretNamespace: task-aura
+  secretPasswordKey: mongodb-passwords
+  # Username for authentication (application user)
+  username: task_aura_app
+  # Connection details (same namespace)
+  host: "mongodb.task-aura.svc.cluster.local"
+  port: 27017
+  database: "task_aura"
+  collection: "purchases"
+  authSource: "task_aura"
+
+# Environment-specific overrides
+environmentVariables:
+  LOG_LEVEL: "INFO"
+  REQUEST_TIMEOUT: "10.0"
+  
+  # API Keys for development (in production, use external secret store)
+  VALID_API_KEYS: "dev-key-123,dev-key-456"
+  
+  # Kafka Consumer settings
+  KAFKA_HEARTBEAT_INTERVAL_MS: "3000"
+  KAFKA_SESSION_TIMEOUT_MS: "10000"
+  
+  # MongoDB settings
+  MONGODB_DATABASE: "task_aura"
+  MONGODB_COLLECTION: "purchases"
+  
+  # Autoscaling metrics
+  AUTOSCALE_REQUEST_PER_SECOND: "100"
+  AUTOSCALE_LATENCY_P99_MS: "500"
+  AUTOSCALE_KAFKA_LAG: "1000"

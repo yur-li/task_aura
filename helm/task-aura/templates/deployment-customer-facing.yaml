@@ -1,0 +1,130 @@
+{{- if .Values.customerFacing.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-facing
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-facing
+    version: v1
+spec:
+  replicas: {{ .Values.customerFacing.replicas }}
+  
+  selector:
+    matchLabels:
+      app: customer-facing
+  
+  template:
+    metadata:
+      labels:
+        app: customer-facing
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.customerFacing.service.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    
+    spec:
+      {{- if .Values.rbac.enabled }}
+      serviceAccountName: {{ .Values.rbac.serviceAccount.name }}
+      {{- end }}
+      
+      containers:
+      - name: customer-facing
+        image: "{{ .Values.customerFacing.image.repository }}:{{ .Values.customerFacing.image.tag }}"
+        imagePullPolicy: {{ .Values.customerFacing.image.pullPolicy }}
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: {{ .Values.customerFacing.service.metricsPort }}
+          protocol: TCP
+        
+        env:
+        - name: API_PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "{{ .Values.customerFacing.service.metricsPort }}"
+        
+        # Kafka credentials from secret (same namespace)
+        - name: KAFKA_SASL_PLAIN_USERNAME
+          value: {{ .Values.kafka.username | quote }}
+        - name: KAFKA_SASL_PLAIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-user-passwords
+              key: client-passwords
+
+        # Keep MongoDB secret wiring consistent across custom apps
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mongodb.secretName }}
+              key: {{ .Values.mongodb.secretPasswordKey }}
+        
+        # Load environment from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: customer-facing-config
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "{{ .Values.customerFacing.resources.requests.memory }}"
+            cpu: "{{ .Values.customerFacing.resources.requests.cpu }}"
+          limits:
+            memory: "{{ .Values.customerFacing.resources.limits.memory }}"
+            cpu: "{{ .Values.customerFacing.resources.limits.cpu }}"
+        
+        # Liveness probe - restart if service crashes
+        {{- if .Values.customerFacing.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.customerFacing.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.customerFacing.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.customerFacing.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.customerFacing.livenessProbe.failureThreshold }}
+        {{- end }}
+        
+        # Readiness probe - remove from load balancer if not ready
+        {{- if .Values.customerFacing.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: {{ .Values.customerFacing.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.customerFacing.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.customerFacing.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.customerFacing.readinessProbe.failureThreshold }}
+        {{- end }}
+        
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - customer-facing
+              topologyKey: kubernetes.io/hostname
+---
+{{- end }}

@@ -1,0 +1,170 @@
+{{- if .Values.networkPolicy.enabled }}
+# Deny all traffic by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+
+# Allow customer-facing to receive traffic from outside
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-customer-facing-ingress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: customer-facing
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8001  # metrics
+---
+
+# Allow customer-facing to reach customer-mgmt and Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-customer-facing-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: customer-facing
+  policyTypes:
+  - Egress
+  egress:
+  # To customer-mgmt
+  - to:
+    - podSelector:
+        matchLabels:
+          app: customer-mgmt
+    ports:
+    - protocol: TCP
+      port: 8081
+  # To Kafka (matches Bitnami Kafka broker pods)
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kafka
+          app.kubernetes.io/component: broker
+    ports:
+    - protocol: TCP
+      port: 9092
+  # To DNS for external lookups
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+---
+
+# Allow customer-mgmt to receive traffic from customer-facing
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-customer-mgmt-ingress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: customer-mgmt
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: customer-facing
+    ports:
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8002  # metrics
+---
+
+# Allow customer-mgmt to reach MongoDB and Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-customer-mgmt-egress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: customer-mgmt
+  policyTypes:
+  - Egress
+  egress:
+  # To MongoDB (matches Bitnami MongoDB pods)
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mongodb
+          app.kubernetes.io/component: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # To Kafka (matches Bitnami Kafka broker pods)
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kafka
+          app.kubernetes.io/component: broker
+    ports:
+    - protocol: TCP
+      port: 9092
+  # To DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+---
+
+# Allow Kafka and MongoDB to receive traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-mongodb-ingress
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - kafka
+      - mongodb
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 27017
+---
+
+{{- end }}

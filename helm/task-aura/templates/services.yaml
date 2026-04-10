@@ -1,0 +1,48 @@
+{{- if .Values.customerFacing.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-facing
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-facing
+spec:
+  type: {{ .Values.customerFacing.service.type }}
+  ports:
+  - port: {{ .Values.customerFacing.service.port }}
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: {{ .Values.customerFacing.service.metricsPort }}
+    targetPort: {{ .Values.customerFacing.service.metricsPort }}
+    protocol: TCP
+    name: metrics
+  selector:
+    app: customer-facing
+---
+{{- end }}
+
+{{- if .Values.customerMgmt.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-mgmt
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: customer-mgmt
+spec:
+  type: {{ .Values.customerMgmt.service.type }}
+  ports:
+  - port: {{ .Values.customerMgmt.service.port }}
+    targetPort: 8081
+    protocol: TCP
+    name: https
+  - port: {{ .Values.customerMgmt.service.metricsPort }}
+    targetPort: {{ .Values.customerMgmt.service.metricsPort }}
+    protocol: TCP
+    name: metrics
+  selector:
+    app: customer-mgmt
+  clusterIP: None  # Headless service for internal communication
+---
+{{- end }}

@@ -1,0 +1,358 @@
+{{- if .Values.ui.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ui-html
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ui
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Task Aura</title>
+      <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316213e'/%3E%3Cpath d='M32 11 17 37h11l-3 16 22-30H36l4-12Z' fill='%237c6af7'/%3E%3C/svg%3E" />
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #222; }
+        header { background: #1a1a2e; color: #e0e0ff; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+        header h1 { font-size: 1.4rem; font-weight: 600; }
+        header span { font-size: 0.8rem; opacity: 0.6; }
+        nav { background: #16213e; display: flex; gap: 4px; padding: 0 32px; }
+        nav button { background: none; border: none; color: #aaa; padding: 12px 20px; cursor: pointer; font-size: 0.95rem; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        nav button.active { color: #fff; border-bottom-color: #7c6af7; }
+        main { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+        .card { background: #fff; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 24px; }
+        h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: #333; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+        label { display: block; font-size: 0.8rem; font-weight: 500; color: #666; margin-bottom: 6px; }
+        input, select { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+        input:focus, select:focus { border-color: #7c6af7; }
+        .btn { background: #7c6af7; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+        .btn:hover { background: #6355d4; }
+        .btn:disabled { background: #aaa; cursor: not-allowed; }
+        .btn-secondary { background: #f0f0f0; color: #333; margin-left: 8px; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin-top: 16px; font-size: 0.9rem; }
+        .alert.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px 14px; background: #f8f8f8; font-size: 0.8rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #eee; }
+        td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+        tr:last-child td { border-bottom: none; }
+        .empty { text-align: center; padding: 40px; color: #aaa; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .badge.green { background: #d4edda; color: #155724; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+        .status-item { border: 1px solid #eee; border-radius: 8px; padding: 16px; }
+        .status-item .name { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+        .status-item .value { font-size: 1.4rem; font-weight: 600; color: #333; }
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 4px; background: #f0f0f0; font-size: 0.8rem; margin-right: 4px; }
+        #tab-purchase, #tab-history, #tab-health { display: none; }
+        #tab-purchase.visible, #tab-history.visible, #tab-health.visible { display: block; }
+        .config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .config-row label { width: 120px; flex-shrink: 0; margin: 0; }
+        .config-row input { flex: 1; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.85rem; }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    </head>
+    <body>
+      <header>
+        <h1>⚡ Task Aura</h1>
+        <span>Purchase Management System</span>
+      </header>
+      <nav>
+        <button class="active" onclick="switchTab('purchase', this)">Make Purchase</button>
+        <button onclick="switchTab('history', this)">Purchase History</button>
+        <button onclick="switchTab('health', this)">Health Status</button>
+      </nav>
+      <main>
+
+        <!-- Config panel always visible -->
+        <div class="card" style="padding:16px 28px;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div class="config-row" style="margin:0;flex:1;min-width:280px;">
+              <label>API Base URL</label>
+              <input id="apiBase" type="text" value="/api" />
+            </div>
+            <div class="config-row" style="margin:0;">
+              <label>API Key</label>
+              <input id="apiKey" type="text" value="dev-key-123" style="width:180px;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Purchase Tab -->
+        <div id="tab-purchase" class="visible">
+          <div class="card">
+            <h2>Submit a Purchase</h2>
+            <div class="form-row three">
+              <div>
+                <label>Username</label>
+                <input id="buy-username" type="text" placeholder="e.g. alice" />
+              </div>
+              <div>
+                <label>User ID</label>
+                <input id="buy-userid" type="text" placeholder="e.g. user-001" />
+              </div>
+              <div>
+                <label>Price ($)</label>
+                <input id="buy-price" type="number" placeholder="e.g. 49.99" step="0.01" min="0.01" />
+              </div>
+            </div>
+            <button class="btn" id="buy-btn" onclick="submitPurchase()">Submit Purchase</button>
+            <div id="buy-result"></div>
+          </div>
+          <div class="card">
+            <h2>Load Test</h2>
+            <div class="form-row">
+              <div>
+                <label>Requests</label>
+                <input id="load-count" type="number" value="50" min="1" max="500" />
+              </div>
+              <div>
+                <label>Concurrency</label>
+                <input id="load-concurrency" type="number" value="5" min="1" max="20" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label>User ID prefix</label>
+                <input id="load-userid" type="text" value="load-user" />
+              </div>
+              <div>
+                <label>Price range ($)</label>
+                <input id="load-price-max" type="number" value="200" min="1" max="1000" />
+              </div>
+            </div>
+            <button class="btn" id="load-btn" onclick="runLoadTest()">Start Load Test</button>
+            <button class="btn btn-secondary" onclick="stopLoad()">Stop</button>
+            <div id="load-result"></div>
+          </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="tab-history">
+          <div class="card">
+            <h2>Purchase History</h2>
+            <div class="form-row" style="margin-bottom:0;">
+              <div>
+                <label>User ID</label>
+                <input id="hist-userid" type="text" placeholder="e.g. user-001" />
+              </div>
+              <div style="display:flex;align-items:flex-end;">
+                <button class="btn" onclick="fetchHistory()">Fetch History</button>
+              </div>
+            </div>
+            <div id="hist-result" style="margin-top:20px;"></div>
+          </div>
+        </div>
+
+        <!-- Health Tab -->
+        <div id="tab-health">
+          <div class="card">
+            <h2>Service Health</h2>
+            <button class="btn" onclick="checkHealth()">Refresh</button>
+            <div id="health-result" style="margin-top:20px;"></div>
+          </div>
+          <div class="card">
+            <h2>Quick Links</h2>
+            <p style="color:#555;font-size:0.9rem;margin-bottom:12px;">Port-forward these services to access them locally:</p>
+            <div style="display:grid;gap:8px;font-size:0.85rem;">
+              <div><code>kubectl port-forward -n monitoring svc/grafana 3000:80</code> → <a href="http://localhost:3000" target="_blank">Grafana :3000</a> (admin/admin)</div>
+              <div><code>kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090</code> → <a href="http://localhost:9090" target="_blank">Prometheus :9090</a></div>
+              <div><code>kubectl port-forward -n argocd svc/argocd-server 6443:443</code> → <a href="https://localhost:6443" target="_blank">ArgoCD :6443</a></div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+      <script>
+        var loadRunning = false;
+
+        function normalizeApiBase(value) {
+          var normalized = (value || '').trim().replace(/\/$/, '');
+          var localLegacyBases = [
+            'http://localhost:8080',
+            'http://127.0.0.1:8080',
+            window.location.origin,
+            window.location.origin + '/api'
+          ];
+          if (!normalized || localLegacyBases.indexOf(normalized) !== -1) {
+            return '/api';
+          }
+          return normalized;
+        }
+
+        function switchTab(tab, btn) {
+          document.querySelectorAll('[id^="tab-"]').forEach(function(el) { el.classList.remove('visible'); });
+          document.querySelectorAll('nav button').forEach(function(b) { b.classList.remove('active'); });
+          document.getElementById('tab-' + tab).classList.add('visible');
+          btn.classList.add('active');
+        }
+
+        function apiBase() { return normalizeApiBase(document.getElementById('apiBase').value); }
+        function apiKey()  { return document.getElementById('apiKey').value; }
+        function headers() { return { 'Content-Type': 'application/json', 'X-API-Key': apiKey() }; }
+
+        function alert(el, msg, type) {
+          document.getElementById(el).innerHTML = '<div class="alert ' + type + '">' + msg + '</div>';
+        }
+
+        async function submitPurchase() {
+          var username = document.getElementById('buy-username').value.trim();
+          var userid   = document.getElementById('buy-userid').value.trim();
+          var price    = parseFloat(document.getElementById('buy-price').value);
+          if (!username || !userid || isNaN(price)) { alert('buy-result', 'All fields are required.', 'error'); return; }
+          var btn = document.getElementById('buy-btn');
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner"></span>Sending...';
+          try {
+            var r = await fetch(apiBase() + '/buy', { method: 'POST', headers: headers(), body: JSON.stringify({username, userid, price}) });
+            var d = await r.json();
+            if (r.ok) {
+              alert('buy-result', '✓ Purchase accepted! Transaction ID: <code>' + (d.transaction_id || 'N/A') + '</code>', 'success');
+            } else {
+              alert('buy-result', '✗ Error ' + r.status + ': ' + JSON.stringify(d), 'error');
+            }
+          } catch(e) { alert('buy-result', '✗ Network error: ' + e.message + '. Is port-forward running?', 'error'); }
+          btn.disabled = false; btn.innerHTML = 'Submit Purchase';
+        }
+
+        async function fetchHistory() {
+          var userid = document.getElementById('hist-userid').value.trim();
+          if (!userid) { alert('hist-result', 'Enter a User ID.', 'error'); return; }
+          document.getElementById('hist-result').innerHTML = '<div class="alert info">Loading...</div>';
+          try {
+            var r = await fetch(apiBase() + '/purchases/' + encodeURIComponent(userid), { headers: { 'X-API-Key': apiKey() } });
+            var d = await r.json();
+            if (!r.ok) { alert('hist-result', '✗ Error ' + r.status + ': ' + JSON.stringify(d), 'error'); return; }
+            var purchases = d.purchases || [];
+            if (purchases.length === 0) {
+              document.getElementById('hist-result').innerHTML = '<div class="empty">No purchases found for <b>' + userid + '</b></div>';
+              return;
+            }
+            var rows = purchases.map(function(p) {
+              return '<tr><td>' + p.username + '</td><td>' + p.userid + '</td><td>$' + p.price.toFixed(2) + '</td><td>' + new Date(p.timestamp).toLocaleString() + '</td></tr>';
+            }).join('');
+            document.getElementById('hist-result').innerHTML =
+              '<p style="margin-bottom:12px;color:#555;font-size:0.9rem;">Found <b>' + purchases.length + '</b> purchase(s)</p>' +
+              '<table><thead><tr><th>Username</th><th>User ID</th><th>Price</th><th>Timestamp</th></tr></thead><tbody>' + rows + '</tbody></table>';
+          } catch(e) { alert('hist-result', '✗ Network error: ' + e.message, 'error'); }
+        }
+
+        async function checkHealth() {
+          document.getElementById('health-result').innerHTML = '<div class="alert info">Checking...</div>';
+          try {
+            var [liveRes, readyRes] = await Promise.all([
+              fetch(apiBase() + '/health', { headers: { 'X-API-Key': apiKey() } }).catch(function(e) { return {ok:false,status:'ERR',json:function(){return {error:e.message};}}; }),
+              fetch(apiBase() + '/ready',  { headers: { 'X-API-Key': apiKey() } }).catch(function(e) { return {ok:false,status:'ERR',json:function(){return {error:e.message};}}; })
+            ]);
+            var live  = await liveRes.json().catch(function(){return {};});
+            var ready = await readyRes.json().catch(function(){return {};});
+            document.getElementById('health-result').innerHTML =
+              '<div class="status-grid">' +
+              statusCard('Liveness', liveRes.ok, live.status || liveRes.status) +
+              statusCard('Readiness', readyRes.ok, ready.status || readyRes.status) +
+              '</div>' +
+              (ready.dependencies ? '<div style="margin-top:16px;">' + Object.entries(ready.dependencies).map(function(e){
+                return '<span class="tag" style="background:' + (e[1]?'#d4edda':'#f8d7da') + ';color:' + (e[1]?'#155724':'#721c24') + ';">' + e[0] + ': ' + (e[1]?'✓':'✗') + '</span>';
+              }).join('') + '</div>' : '');
+          } catch(e) { alert('health-result', '✗ ' + e.message, 'error'); }
+        }
+
+        function statusCard(name, ok, val) {
+          return '<div class="status-item"><div class="name">' + name + '</div><div class="value" style="color:' + (ok?'#28a745':'#dc3545') + ';">' + (ok?'✓':'✗') + ' ' + val + '</div></div>';
+        }
+
+        async function runLoadTest() {
+          if (loadRunning) return;
+          var total    = parseInt(document.getElementById('load-count').value) || 50;
+          var conc     = parseInt(document.getElementById('load-concurrency').value) || 5;
+          var prefix   = document.getElementById('load-userid').value || 'load-user';
+          var maxPrice = parseFloat(document.getElementById('load-price-max').value) || 200;
+          loadRunning = true;
+          var btn = document.getElementById('load-btn'); btn.disabled = true;
+          var ok = 0, fail = 0, sent = 0;
+          var start = Date.now();
+          function renderProgress() {
+            document.getElementById('load-result').innerHTML =
+              '<div class="alert info">Sent <b>' + sent + '</b>/' + total + ' | ✓ ' + ok + ' success | ✗ ' + fail + ' failed | ' +
+              Math.round((sent / Math.max(1, (Date.now()-start)/1000)) * 10) / 10 + ' req/s</div>';
+          }
+          async function sendOne(i) {
+            if (!loadRunning) return;
+            try {
+              var r = await fetch(apiBase() + '/buy', { method:'POST', headers: headers(),
+                body: JSON.stringify({ username: prefix + '-' + i, userid: prefix + '-' + Math.floor(i/3), price: Math.round((1 + Math.random()*maxPrice)*100)/100 })
+              });
+              r.ok ? ok++ : fail++;
+            } catch(e) { fail++; }
+            sent++;
+            renderProgress();
+          }
+          var queue = Array.from({length: total}, function(_, i) { return i; });
+          async function worker() {
+            while (queue.length > 0 && loadRunning) { await sendOne(queue.shift()); }
+          }
+          var workers = Array.from({length: conc}, worker);
+          await Promise.all(workers);
+          loadRunning = false; btn.disabled = false;
+          var elapsed = ((Date.now()-start)/1000).toFixed(1);
+          document.getElementById('load-result').innerHTML =
+            '<div class="alert ' + (fail===0?'success':'info') + '">' +
+            'Done! ' + total + ' requests in ' + elapsed + 's | ✓ ' + ok + ' | ✗ ' + fail +
+            ' | avg ' + Math.round(total/elapsed * 10)/10 + ' req/s' +
+            '<br/><small>Check HPA: <code>kubectl get hpa -n task-aura -w</code></small></div>';
+        }
+
+        function stopLoad() { loadRunning = false; }
+
+        (function initializeUiConfig() {
+          var apiBaseInput = document.getElementById('apiBase');
+          apiBaseInput.value = normalizeApiBase(apiBaseInput.value);
+        })();
+
+        // Auto-check health on health tab first open
+        document.querySelector('nav button:last-child').addEventListener('click', function(){ setTimeout(checkHealth, 100); });
+      </script>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ui-nginx
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: ui
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      location /api/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://customer-facing.task-aura.svc.cluster.local:80/;
+      }
+    }
+{{- end }}

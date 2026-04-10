@@ -1,0 +1,60 @@
+# ArgoCD Application for MongoDB (Wave 2 - Data layer)
+# Deployed in parallel with Kafka
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mongodb
+  namespace: argocd
+  # Wave 2: Deploy after monitoring infrastructure
+  annotations:
+    argocd.argoproj.io/compare-result: ignore
+    argocd.argoproj.io/sync-wave: "3"
+  labels:
+    app.kubernetes.io/instance: task-aura
+    argocd.argoproj.io/instance: task-aura
+spec:
+  project: default
+  source:
+    repoURL: registry-1.docker.io/bitnamicharts
+    chart: mongodb
+    targetRevision: 18.6.1
+    helm:
+      releaseName: mongodb
+      values: |
+        auth:
+          enabled: true
+          usernames:
+            - task_aura_app
+          databases:
+            - task_aura
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+            namespace: monitoring
+        persistence:
+          enabled: true
+          size: 10Gi
+        replicas: 1
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: task-aura
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
