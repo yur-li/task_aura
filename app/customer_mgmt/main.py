@@ -9,6 +9,7 @@ import os
 import time
 from datetime import datetime
 from typing import Optional
+from urllib.parse import quote_plus
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -43,14 +44,32 @@ API_PORT = int(os.getenv("API_PORT", CUSTOMER_MGMT_DEFAULTS["API_PORT"]))
 METRICS_PORT = int(os.getenv("METRICS_PORT", CUSTOMER_MGMT_DEFAULTS["METRICS_PORT"]))
 
 # MongoDB configuration
-MONGODB_CONNECTION_STRING = os.getenv(
-    "MONGODB_CONNECTION_STRING",
-    CUSTOMER_MGMT_DEFAULTS["MONGODB_CONNECTION_STRING"],
-)
+MONGODB_CONNECTION_STRING = os.getenv("MONGODB_CONNECTION_STRING", "").strip()
 MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", SERVICE_DEFAULTS["MONGODB_DATABASE"])
 MONGODB_COLLECTION = os.getenv(
     "MONGODB_COLLECTION", SERVICE_DEFAULTS["MONGODB_COLLECTION"]
 )
+MONGODB_HOST = os.getenv("MONGODB_HOST", CUSTOMER_MGMT_DEFAULTS["MONGODB_HOST"])
+MONGODB_PORT = os.getenv("MONGODB_PORT", CUSTOMER_MGMT_DEFAULTS["MONGODB_PORT"])
+MONGODB_USERNAME = os.getenv(
+    "MONGODB_USERNAME", CUSTOMER_MGMT_DEFAULTS["MONGODB_USERNAME"]
+)
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "")
+MONGODB_AUTH_SOURCE = os.getenv(
+    "MONGODB_AUTH_SOURCE", CUSTOMER_MGMT_DEFAULTS["MONGODB_AUTH_SOURCE"]
+)
+
+if not MONGODB_CONNECTION_STRING:
+    if MONGODB_USERNAME and MONGODB_PASSWORD:
+        MONGODB_CONNECTION_STRING = (
+            f"mongodb://{quote_plus(MONGODB_USERNAME)}:{quote_plus(MONGODB_PASSWORD)}"
+            f"@{MONGODB_HOST}:{MONGODB_PORT}/{MONGODB_DATABASE}"
+            f"?authSource={quote_plus(MONGODB_AUTH_SOURCE)}"
+        )
+    else:
+        MONGODB_CONNECTION_STRING = (
+            f"mongodb://{MONGODB_HOST}:{MONGODB_PORT}/{MONGODB_DATABASE}"
+        )
 
 # Kafka configuration
 KAFKA_BROKERS = os.getenv(

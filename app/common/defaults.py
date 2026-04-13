@@ -5,7 +5,7 @@ SERVICE_DEFAULTS = {
     "KAFKA_BROKERS": "kafka:9092",
     "KAFKA_TOPIC": "purchases",
     "KAFKA_SASL_MECHANISM": "PLAIN",
-    "KAFKA_SASL_PLAIN_PASSWORD": "admin",
+    "KAFKA_SASL_PLAIN_PASSWORD": "",
     "KAFKA_SECURITY_PROTOCOL": "SASL_PLAINTEXT",
     "MONGODB_DATABASE": "task_aura",
     "MONGODB_COLLECTION": "purchases",
@@ -17,7 +17,7 @@ CUSTOMER_FACING_DEFAULTS = {
     "KAFKA_SASL_PLAIN_USERNAME": "user1",
     "CUSTOMER_MGMT_URL": "https://customer-mgmt:8081",
     "REQUEST_TIMEOUT": "10.0",
-    "VALID_API_KEYS": "dev-key-123",
+    "VALID_API_KEYS": "",
     "CORS_ALLOWED_ORIGINS": (
         "http://localhost:3001,http://127.0.0.1:3001,"
         "http://localhost:8080,http://127.0.0.1:8080"
@@ -27,9 +27,11 @@ CUSTOMER_FACING_DEFAULTS = {
 CUSTOMER_MGMT_DEFAULTS = {
     "API_PORT": "8081",
     "METRICS_PORT": "8002",
-    "MONGODB_CONNECTION_STRING": (
-        "mongodb://admin:admin@mongodb:27017/task_aura?authSource=admin"
-    ),
+    "MONGODB_CONNECTION_STRING": "mongodb://mongodb:27017/task_aura",
+    "MONGODB_HOST": "mongodb",
+    "MONGODB_PORT": "27017",
+    "MONGODB_USERNAME": "",
+    "MONGODB_AUTH_SOURCE": "admin",
     "KAFKA_SASL_PLAIN_USERNAME": "admin",
     "REQUEST_LIMIT": "1000",
     "KAFKA_BATCH_SIZE": 100,

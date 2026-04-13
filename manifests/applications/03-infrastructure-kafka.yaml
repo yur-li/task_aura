@@ -8,7 +8,7 @@ metadata:
   # Wave 3: Deploy after monitoring infrastructure
   annotations:
     argocd.argoproj.io/compare-result: ignore
-    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-wave: "3"
   labels:
     app.kubernetes.io/instance: task-aura
     argocd.argoproj.io/instance: task-aura

@@ -39,8 +39,8 @@ kubectl get applications -n argocd -o wide
 Deployment waves:
 - Wave 0: Prometheus stack
 - Wave 1: Prometheus Adapter
-- Wave 3: MongoDB
-- Wave 4: Kafka
+- Wave 2: MongoDB
+- Wave 3: Kafka
 - Wave 10: Task Aura app chart
 
 Expected namespaces:
@@ -92,6 +92,51 @@ Infrastructure metrics wiring:
 - Kafka metrics are enabled in [manifests/applications/03-infrastructure-kafka.yaml](manifests/applications/03-infrastructure-kafka.yaml) via chart `metrics.jmx.enabled=true` and `metrics.serviceMonitor.enabled=true`.
 - Prometheus stack discovery is configured in [manifests/applications/00-infrastructure-prometheus.yaml](manifests/applications/00-infrastructure-prometheus.yaml) with `serviceMonitorSelectorNilUsesHelmValues=false`.
 
+## Custom Apps and Data Flow
+
+Task Aura custom applications are:
+- `customer-facing`: synchronous API edge for clients and UI.
+- `customer-mgmt`: asynchronous processor + query API.
+- `ui`: NGINX-served single-page app for demo and operator checks.
+
+End-to-end purchase flow:
+1. Client sends `POST /buy` to `customer-facing`.
+2. `customer-facing` validates input + API key, then publishes event to Kafka topic `purchases`.
+3. `customer-mgmt` consumes Kafka events in batches and writes documents to MongoDB collection `purchases`.
+4. Client or UI reads history through `GET /purchases/{userid}` on `customer-facing`.
+5. `customer-facing` fetches from `customer-mgmt` endpoint `GET /users/{userid}/purchases`, which serves data from MongoDB.
+
+Kafka and MongoDB interaction details:
+- Kafka is the decoupling layer between write-path (`customer-facing`) and storage-path (`customer-mgmt`).
+- `customer-mgmt` tracks consumer lag and batch write metrics, used for autoscaling and observability.
+- MongoDB stores canonical purchase records used by history/stats APIs.
+- MongoDB and Kafka credentials are injected from Kubernetes Secrets into app pods.
+
+Relevant manifests and code:
+- App Deployments: [helm/task-aura/templates/deployment-customer-facing.yaml](helm/task-aura/templates/deployment-customer-facing.yaml), [helm/task-aura/templates/deployment-customer-mgmt.yaml](helm/task-aura/templates/deployment-customer-mgmt.yaml)
+- Service wiring: [helm/task-aura/templates/services.yaml](helm/task-aura/templates/services.yaml)
+- Consumer logic: [app/customer_mgmt/kafka_consumer.py](app/customer_mgmt/kafka_consumer.py)
+- Database access: [app/customer_mgmt/db.py](app/customer_mgmt/db.py)
+
+## UI Connectivity
+
+How UI reaches backend:
+- UI is served by NGINX Deployment/Service (`ui`) in the same namespace.
+- UI default API base is `/api` (see `apiBase` in [helm/task-aura/templates/configmap-ui.yaml](helm/task-aura/templates/configmap-ui.yaml)).
+- NGINX config proxies `/api/*` to the `customer-facing` service.
+- The browser never calls `customer-mgmt` directly; all reads/writes go through `customer-facing`.
+
+Connection map:
+- Browser -> `ui` service -> NGINX `/api` proxy -> `customer-facing` service -> Kafka and `customer-mgmt` service -> MongoDB.
+
+Local access example:
+
+```bash
+kubectl port-forward -n task-aura svc/ui 3001:80
+```
+
+Then open http://localhost:3001 and keep API Base URL as `/api`.
+
 ## API Smoke Test
 
 ```bash
@@ -113,6 +158,68 @@ curl http://localhost:8080/purchases/user-001 \
 Health endpoints:
 - `GET /health`
 - `GET /ready`
+
+## Load Test and Autoscaling Demo
+
+There are two easy ways to generate load and verify scale-out.
+
+### Option A: Built-in UI Load Test
+
+1. Port-forward UI:
+
+```bash
+kubectl port-forward -n task-aura svc/ui 3001:80
+```
+
+2. Open http://localhost:3001.
+3. In the Load Test card:
+- Set Requests (for example 500-2000).
+- Set Concurrency (for example 10-20).
+- Click Start Load Test.
+4. In another terminal, watch scale behavior:
+
+```bash
+kubectl get hpa -n task-aura -w
+kubectl get pods -n task-aura -w
+```
+
+### Option B: CLI Load Generation
+
+Port-forward customer-facing first:
+
+```bash
+kubectl port-forward -n task-aura svc/customer-facing 8080:80
+```
+
+Then generate load with parallel curl:
+
+```bash
+for i in $(seq 1 1000); do
+  uid="load-group-$((i % 50))"
+  curl -s -o /dev/null -X POST http://localhost:8080/buy \
+    -H 'X-API-Key: dev-key-123' \
+    -H 'Content-Type: application/json' \
+    -d "{\"username\":\"load-user-$i\",\"userid\":\"$uid\",\"price\":19.99}" &
+
+  if (( i % 20 == 0 )); then
+    wait
+  fi
+done
+wait
+```
+
+Observe autoscaling and custom metrics:
+
+```bash
+kubectl get hpa -n task-aura
+kubectl top pods -n task-aura
+kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/task-aura/pods/*/http_requests_per_second"
+kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/task-aura/pods/*/kafka_consumer_lag"
+```
+
+Expected behavior:
+- `customer-facing-hpa` scales with HTTP request-rate metric.
+- `customer-mgmt-hpa` scales with Kafka consumer lag during ingestion bursts.
 
 ## Observability
 

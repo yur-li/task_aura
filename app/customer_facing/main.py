@@ -73,9 +73,13 @@ REQUEST_TIMEOUT = float(
 )
 
 # Valid API keys (in production, load from secure store)
-VALID_API_KEYS = set(
-    os.getenv("VALID_API_KEYS", CUSTOMER_FACING_DEFAULTS["VALID_API_KEYS"]).split(",")
-)
+VALID_API_KEYS = {
+    api_key.strip()
+    for api_key in os.getenv(
+        "VALID_API_KEYS", CUSTOMER_FACING_DEFAULTS["VALID_API_KEYS"]
+    ).split(",")
+    if api_key.strip()
+}
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -248,7 +252,7 @@ async def startup_event():
     # Initialize HTTP client for internal service communication
     try:
         httpx_client = httpx.AsyncClient(
-            verify=False,  # Disable cert verification (mTLS removed)
+            verify=False,  # Disable cert verification (no mTLS configured for this task)
             timeout=REQUEST_TIMEOUT,
         )
         logger.info("HTTP client initialized")
@@ -287,6 +291,10 @@ async def validate_api_key(x_api_key: Optional[str] = Header(None)) -> str:
     Validate API key in request header.
     All endpoints except /health require valid API key.
     """
+    if not VALID_API_KEYS:
+        logger.error("No API keys configured")
+        raise AuthenticationError("API key authentication is not configured")
+
     if not x_api_key:
         logger.warning("Request missing X-API-Key header")
         raise AuthenticationError("Missing X-API-Key header")

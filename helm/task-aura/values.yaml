@@ -56,10 +56,7 @@ customerFacing:
     enabled: true
     minReplicas: 2
     maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
     targetHttpRequestsPerSecond: 50
-    targetKafkaConsumerLag: 1000
 
 # Customer Management Service Configuration
 customerMgmt:
@@ -107,8 +104,7 @@ customerMgmt:
     enabled: true
     minReplicas: 2
     maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
+    targetKafkaConsumerLag: 1000
 
 # Kafka Configuration
 kafka:

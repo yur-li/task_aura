@@ -3,7 +3,7 @@
 # Applications are deployed in order based on syncWave annotations (lower numbers first)
 #
 # Deployment order:
-# Wave 0-4:  Infrastructure (Prometheus, Prometheus Adapter, MongoDB, Kafka)
+# Wave 0-3:  Infrastructure (Prometheus, Prometheus Adapter, MongoDB, Kafka)
 # Wave 10:   Task Aura application chart (customer-facing, customer-mgmt, UI)
 #
 # To deploy the entire system:
@@ -21,7 +21,7 @@ spec:
   # ArgoCD will recursively discover all Application manifests
   source:
     repoURL: https://github.com/yur-li/task_aura
-    targetRevision: main
+    targetRevision: dev
     path: manifests/applications
   
   destination:
@@ -56,10 +56,9 @@ metadata:
   name: task-aura-wave-manager
   namespace: argocd
 data:
-  # Documentation for syncWave values
   sync-waves: |
     Wave 0: Prometheus (metrics infrastructure)
     Wave 1: Prometheus Adapter (custom metrics API for HPA)
-    Wave 3: MongoDB (data layer)
-    Wave 4: Kafka (messaging layer)
+    Wave 2: MongoDB (data layer)
+    Wave 3: Kafka (messaging layer)
     Wave 10: Task Aura (customer-facing, customer-mgmt, UI)

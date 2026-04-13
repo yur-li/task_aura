@@ -64,6 +64,9 @@ class PurchaseConsumer:
         self.running = False
         self.message_batch: List[Dict[str, Any]] = []
         self.last_batch_time = datetime.utcnow()
+        self.pending_offsets: Dict[TopicPartition, int] = {}
+        self.batch_lock = asyncio.Lock()
+        self.flush_task: asyncio.Task = None
 
     async def start(self):
         """Start the Kafka consumer."""
@@ -87,7 +90,7 @@ class PurchaseConsumer:
                 bootstrap_servers=self.bootstrap_servers,
                 group_id="purchase-consumer",
                 auto_offset_reset="earliest",
-                enable_auto_commit=True,
+                enable_auto_commit=False,
                 value_deserializer=lambda m: json.loads(m.decode("utf-8")),
                 heartbeat_interval_ms=3000,  # 3 seconds
                 session_timeout_ms=10000,  # 10 seconds
@@ -100,6 +103,7 @@ class PurchaseConsumer:
             _get_metrics().set_dependency_health("kafka", True)
 
             self.running = True
+            self.flush_task = asyncio.create_task(self._periodic_flush_loop())
         except Exception as e:
             logger.error(f"Failed to start Kafka consumer: {e}")
             _get_metrics().set_dependency_health("kafka", False)
@@ -114,6 +118,16 @@ class PurchaseConsumer:
         if self.message_batch:
             await self._write_batch_to_db()
 
+        if self.flush_task:
+            self.flush_task.cancel()
+            try:
+                await self.flush_task
+            except asyncio.CancelledError:
+                pass
+            self.flush_task = None
+
+        await self._commit_offsets()
+
         if self.consumer:
             await self.consumer.stop()
             logger.info("Kafka consumer stopped")
@@ -126,7 +140,7 @@ class PurchaseConsumer:
         try:
             async for message in self.consumer:
                 try:
-                    purchase_data = message.value
+                    purchase_data = dict(message.value)
                     partition = TopicPartition(message.topic, message.partition)
 
                     # Validate message structure
@@ -136,13 +150,17 @@ class PurchaseConsumer:
                         _get_metrics().kafka_messages_consumed.labels(
                             topic=self.topic, status="failed"
                         ).inc()
+                        await self._commit_single_offset(partition, message.offset)
                         continue
 
                     # Add MongoDB metadata
                     purchase_data["_received_at"] = datetime.utcnow().isoformat()
 
                     # Add to batch
-                    self.message_batch.append(purchase_data)
+                    async with self.batch_lock:
+                        self.message_batch.append(purchase_data)
+                        self._track_offset(partition, message.offset)
+                        should_write = len(self.message_batch) >= self.batch_size
 
                     highwater = self.consumer.highwater(partition)
                     if highwater is not None:
@@ -157,12 +175,6 @@ class PurchaseConsumer:
                     )
 
                     # Check if we should write batch
-                    should_write = (
-                        len(self.message_batch) >= self.batch_size
-                        or (datetime.utcnow() - self.last_batch_time).total_seconds()
-                        >= self.batch_timeout_seconds
-                    )
-
                     if should_write:
                         await self._write_batch_to_db()
 
@@ -181,39 +193,87 @@ class PurchaseConsumer:
             _get_metrics().set_dependency_health("kafka", False)
             raise KafkaError(str(e))
 
-    async def _write_batch_to_db(self):
-        """Write accumulated batch to MongoDB."""
-        if not self.message_batch:
+    def _track_offset(self, partition: TopicPartition, offset: int):
+        """Track highest processed offset per partition for manual commits."""
+        next_offset = offset + 1
+        current = self.pending_offsets.get(partition, 0)
+        if next_offset > current:
+            self.pending_offsets[partition] = next_offset
+
+    async def _commit_offsets(self):
+        """Commit processed Kafka offsets."""
+        if not self.pending_offsets or not self.consumer:
             return
 
-        batch_size = len(self.message_batch)
+        offsets_to_commit = dict(self.pending_offsets)
+        await self.consumer.commit(offsets=offsets_to_commit)
+        self.pending_offsets.clear()
 
+    async def _commit_single_offset(self, partition: TopicPartition, offset: int):
+        """Commit a single offset for a discarded message."""
+        if not self.consumer:
+            return
+
+        committed_next = offset + 1
+        await self.consumer.commit(offsets={partition: committed_next})
+
+        # Avoid later bulk commits moving this partition offset backwards.
+        pending_next = self.pending_offsets.get(partition)
+        if pending_next is not None and pending_next <= committed_next:
+            self.pending_offsets.pop(partition, None)
+
+    async def _periodic_flush_loop(self):
+        """Flush partially filled batches when traffic is idle."""
         try:
-            logger.info(f"Writing batch of {batch_size} messages to MongoDB")
+            while self.running:
+                await asyncio.sleep(1)
 
-            # Insert all messages in a single bulk write
-            result = await self.collection.insert_many(
-                self.message_batch, ordered=False
-            )
+                async with self.batch_lock:
+                    has_batch = bool(self.message_batch)
+                    timed_out = (
+                        (datetime.utcnow() - self.last_batch_time).total_seconds()
+                        >= self.batch_timeout_seconds
+                    )
 
-            logger.info(
-                f"Batch written successfully: {len(result.inserted_ids)} messages"
-            )
-            _get_metrics().kafka_messages_consumed.labels(
-                topic=self.topic, status="success"
-            ).add(batch_size)
-            _get_metrics().kafka_batch_size.labels(topic=self.topic).observe(batch_size)
+                if has_batch and timed_out:
+                    await self._write_batch_to_db()
+        except asyncio.CancelledError:
+            pass
 
-            # Reset batch
-            self.message_batch = []
-            self.last_batch_time = datetime.utcnow()
+    async def _write_batch_to_db(self):
+        """Write accumulated batch to MongoDB."""
+        async with self.batch_lock:
+            if not self.message_batch:
+                return
 
-        except Exception as e:
-            logger.error(f"Failed to write batch to MongoDB: {e}")
-            _get_metrics().kafka_messages_consumed.labels(
-                topic=self.topic, status="failed"
-            ).add(batch_size)
-            raise DatabaseError(str(e))
+            batch_size = len(self.message_batch)
+
+            try:
+                logger.info(f"Writing batch of {batch_size} messages to MongoDB")
+
+                # Insert all messages in a single bulk write
+                result = await self.collection.insert_many(
+                    self.message_batch, ordered=False
+                )
+
+                logger.info(
+                    f"Batch written successfully: {len(result.inserted_ids)} messages"
+                )
+                _get_metrics().kafka_messages_consumed.labels(
+                    topic=self.topic, status="success"
+                ).add(batch_size)
+                _get_metrics().kafka_batch_size.labels(topic=self.topic).observe(batch_size)
+
+                self.message_batch = []
+                self.last_batch_time = datetime.utcnow()
+                await self._commit_offsets()
+
+            except Exception as e:
+                logger.error(f"Failed to write batch to MongoDB: {e}")
+                _get_metrics().kafka_messages_consumed.labels(
+                    topic=self.topic, status="failed"
+                ).add(batch_size)
+                raise DatabaseError(str(e))
 
 
 class ConsumerManager:

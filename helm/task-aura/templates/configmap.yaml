@@ -15,8 +15,10 @@ data:
   KAFKA_SECURITY_PROTOCOL: "SASL_PLAINTEXT"
   CUSTOMER_MGMT_URL: {{ .Values.customerFacing.customerMgmtUrl | quote }}
   VALID_API_KEYS: {{ .Values.environmentVariables.VALID_API_KEYS | quote }}
----
+{{- end }}
+
 {{- if .Values.customerMgmt.enabled }}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -37,5 +39,4 @@ data:
   MONGODB_COLLECTION: {{ .Values.mongodb.collection | quote }}
   MONGODB_AUTH_SOURCE: {{ .Values.mongodb.authSource | quote }}
   MONGODB_SECRET_NAME: {{ .Values.mongodb.secretName | quote }}
-{{- end }}
 {{- end }}
