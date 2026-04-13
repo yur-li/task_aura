@@ -27,7 +27,7 @@ spec:
           customerMgmtUrl: "http://customer-mgmt:8081"
           image:
             repository: yuriili/task-aura-customer-facing
-            tag: 379142751cbf5f10ca974fe2492ce6648d8796b7
+            tag: d8b29f7355696bd32ccbeb7cb1fc3009066f97b8
             pullPolicy: IfNotPresent
           replicas: 1
           autoscaling:
@@ -40,7 +40,7 @@ spec:
           enabled: true
           image:
             repository: yuriili/task-aura-customer-mgmt
-            tag: 379142751cbf5f10ca974fe2492ce6648d8796b7
+            tag: d8b29f7355696bd32ccbeb7cb1fc3009066f97b8
             pullPolicy: IfNotPresent
           replicas: 1
           autoscaling:
