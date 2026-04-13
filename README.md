@@ -31,6 +31,8 @@ kubectl get pods -A -w
 kubectl get applications -n argocd -o wide
 ```
 
+`manifests/root-app.yaml` bootstraps ArgoCD child `Application` health evaluation together with the root app, so later sync waves wait on earlier applications becoming healthy instead of only waiting for the child `Application` object to exist.
+
 Deployment waves:
 - Wave 0: Prometheus Operator CRDs
 - Wave 1: Prometheus stack
@@ -38,6 +40,8 @@ Deployment waves:
 - Wave 3: MongoDB
 - Wave 4: Kafka
 - Wave 10: Task Aura app chart
+
+With the built-in ArgoCD health customization in `manifests/root-app.yaml`, the `task-aura` application in Wave 10 will wait on earlier infrastructure applications to become healthy before syncing.
 
 Expected namespaces:
 - `argocd`: ArgoCD control plane
