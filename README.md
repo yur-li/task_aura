@@ -4,11 +4,6 @@ Task Aura is a Kubernetes-first purchase pipeline with two FastAPI services:
 - `customer-facing`: receives purchases and publishes to Kafka.
 - `customer-mgmt`: consumes Kafka, stores in MongoDB, and serves purchase queries.
 
-Deployment model:
-- App chart: [helm/task-aura](helm/task-aura)
-- GitOps root: [manifests/root-app.yaml](manifests/root-app.yaml)
-- Infra apps: [manifests/applications](manifests/applications)
-
 ## Quick Start (Integrated)
 
 ### 1. Prerequisites
@@ -27,7 +22,7 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl create -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.6/manifests/install.yaml
 ```
 
-### 2. Deploy with ArgoCD (recommended)
+### 2. Deploy with ArgoCD
 
 ```bash
 kubectl apply -f manifests/root-app.yaml
@@ -37,10 +32,11 @@ kubectl get applications -n argocd -o wide
 ```
 
 Deployment waves:
-- Wave 0: Prometheus stack
-- Wave 1: Prometheus Adapter
-- Wave 2: MongoDB
-- Wave 3: Kafka
+- Wave 0: Prometheus Operator CRDs
+- Wave 1: Prometheus stack
+- Wave 2: Prometheus Adapter
+- Wave 3: MongoDB
+- Wave 4: Kafka
 - Wave 10: Task Aura app chart
 
 Expected namespaces:
@@ -59,6 +55,7 @@ kubectl get applications -n argocd
 ```
 
 ArgoCD app status should be `Synced` and `Healthy` for:
+- `prometheus-crds`
 - `prometheus`
 - `prometheus-adapter`
 - `mongodb`
@@ -81,16 +78,17 @@ Secrets and credentials:
 - App deployments consume secrets via `secretKeyRef` (not in ConfigMaps).
 
 MongoDB automatic secret creation:
-- MongoDB app is configured with `auth.usernames[0]` and `auth.databases[0]` in [manifests/applications/02-infrastructure-mongodb.yaml](manifests/applications/02-infrastructure-mongodb.yaml).
+- MongoDB app is configured with `auth.usernames[0]` and `auth.databases[0]` in [manifests/applications/03-infrastructure-mongodb.yaml](manifests/applications/03-infrastructure-mongodb.yaml).
 - Bitnami chart auto-generates passwords when `auth.passwords` is not provided.
 - Generated secret name is `mongodb` (release name is pinned to `mongodb`).
 - Application user password is stored in secret key `mongodb-passwords`.
 - Root password (if needed) is stored in `mongodb-root-password`.
 
 Infrastructure metrics wiring:
-- MongoDB metrics are enabled in [manifests/applications/02-infrastructure-mongodb.yaml](manifests/applications/02-infrastructure-mongodb.yaml) via chart `metrics.enabled=true` and `metrics.serviceMonitor.enabled=true`.
-- Kafka metrics are enabled in [manifests/applications/03-infrastructure-kafka.yaml](manifests/applications/03-infrastructure-kafka.yaml) via chart `metrics.jmx.enabled=true` and `metrics.serviceMonitor.enabled=true`.
-- Prometheus stack discovery is configured in [manifests/applications/00-infrastructure-prometheus.yaml](manifests/applications/00-infrastructure-prometheus.yaml) with `serviceMonitorSelectorNilUsesHelmValues=false`.
+- MongoDB metrics are enabled in [manifests/applications/03-infrastructure-mongodb.yaml](manifests/applications/03-infrastructure-mongodb.yaml) via chart `metrics.enabled=true` and `metrics.serviceMonitor.enabled=true`.
+- Kafka metrics are enabled in [manifests/applications/04-infrastructure-kafka.yaml](manifests/applications/04-infrastructure-kafka.yaml) via chart `metrics.jmx.enabled=true` and `metrics.serviceMonitor.enabled=true`.
+- Prometheus Operator CRDs are installed by [manifests/applications/00-infrastructure-prometheus-crds.yaml](manifests/applications/00-infrastructure-prometheus-crds.yaml).
+- Prometheus stack discovery is configured in [manifests/applications/01-infrastructure-prometheus.yaml](manifests/applications/01-infrastructure-prometheus.yaml) with `serviceMonitorSelectorNilUsesHelmValues=false`.
 
 ## Custom Apps and Data Flow
 
@@ -251,7 +249,7 @@ Useful Prometheus queries:
 Custom metrics API checks:
 
 ```bash
-kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1" | head
+kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1" | jq
 kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/task-aura/pods/*/http_requests_per_second"
 kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/task-aura/pods/*/kafka_consumer_lag"
 ```

@@ -1,14 +1,14 @@
-# ArgoCD Application for Kafka (Wave 3 - Messaging layer)
-# Deployed in parallel with MongoDB
+# ArgoCD Application for Kafka (Wave 4 - Messaging layer)
+# Deployed after monitoring infrastructure and MongoDB.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: kafka
   namespace: argocd
-  # Wave 3: Deploy after monitoring infrastructure
+  # Wave 4: Deploy after monitoring infrastructure
   annotations:
     argocd.argoproj.io/compare-result: ignore
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "4"
   labels:
     app.kubernetes.io/instance: task-aura
     argocd.argoproj.io/instance: task-aura

@@ -1,4 +1,4 @@
-# ArgoCD Application for Prometheus Adapter (Wave 1 - Depends on Prometheus)
+# ArgoCD Application for Prometheus Adapter (Wave 2 - Depends on Prometheus)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -6,7 +6,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/compare-result: ignore
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/instance: task-aura
     argocd.argoproj.io/instance: task-aura
